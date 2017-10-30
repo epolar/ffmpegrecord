@@ -34,6 +34,16 @@ android {
             path 'src/main/cpp/Android.mk'
         }
     }
+    packagingOptions {
+        pickFirst 'lib/armeabi/libavformat.so'
+        pickFirst 'lib/armeabi/libswscale.so'
+        pickFirst 'lib/armeabi/libswresample.so'
+        pickFirst 'lib/armeabi/libavcodec.so'
+        pickFirst 'lib/armeabi/libavfilter.so'
+        pickFirst 'lib/armeabi/libavutil.so'
+        pickFirst 'lib/armeabi/libfdk-aac.so'
+        pickFirst 'lib/armeabi/libpostproc.so'
+    }
 }
 
 dependencies {

@@ -164,6 +164,7 @@ public class MainActivity extends AppCompatActivity
             Toast.makeText(this, "结束", Toast.LENGTH_SHORT).show();
             btnTake.setText("录制");
         } else {
+            isRecord = true;
             isStop = false;
             btnTake.setText("停止");
         }
