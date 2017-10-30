@@ -7,7 +7,9 @@ import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
+import android.media.AudioFormat;
 import android.media.AudioRecord;
+import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
@@ -66,6 +68,28 @@ public class MainActivity extends AppCompatActivity
         SurfaceHolder holder = mPreview.getHolder();
         holder.addCallback(this);
 
+        int sampleRateHz = 44100;
+        int channelConfig = AudioFormat.CHANNEL_IN_STEREO;
+        int audioFormat = AudioFormat.ENCODING_PCM_16BIT;
+        int bufferSizeInBytes = AudioRecord.getMinBufferSize(sampleRateHz,
+                channelConfig,
+                audioFormat);
+        mAudioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                sampleRateHz,
+                channelConfig,
+                audioFormat,
+                bufferSizeInBytes);
+        mAudioRecord.setRecordPositionUpdateListener(new AudioRecord.OnRecordPositionUpdateListener() {
+            @Override
+            public void onMarkerReached(AudioRecord recorder) {
+
+            }
+
+            @Override
+            public void onPeriodicNotification(AudioRecord recorder) {
+
+            }
+        });
     }
 
     private void openCamera() {
@@ -75,6 +99,7 @@ public class MainActivity extends AppCompatActivity
                     @Override
                     public void accept(Boolean grant) throws Exception {
                         if (grant) {
+                            /* 摄像头参数设置 */
                             mCamera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK);
                             mCamera.setDisplayOrientation(90);
                             Camera.Parameters parameters = mCamera.getParameters();
@@ -107,26 +132,12 @@ public class MainActivity extends AppCompatActivity
                             mCamera.setParameters(parameters);
                             Log.i(TAG, MessageFormat.format("preview format:{0, number}", parameters.getPreviewFormat()));
 
-                            File outputFile = new File(getOutputMediaDir(), "last.h264");
-                            if (outputFile.exists()) {
-                                outputFile.delete();
-                            }
-
-//                            Camera.Size previewSize = parameters.getPreviewSize();
-                            YuvUtil.prepare(previewSize.width,
-                                    previewSize.height,
-                                    OUT_WIDTH,
-                                    OUT_HEIGHT,
-                                    90,
-                                    false,
-                                    getOutputMediaDir(),
-                                    "last.h264");
-
                             try {
                                 mCamera.setPreviewDisplay(mPreview.getHolder());
                             } catch (IOException e) {
                                 e.printStackTrace();
                             }
+
                             Log.i(TAG, "init encode");
                             isInitEncode = true;
                         }
@@ -160,12 +171,12 @@ public class MainActivity extends AppCompatActivity
     public void takePhoto() {
         if (isRecord) {
             isStop = true;
+            isRecord = false;
             YuvUtil.stop();
             Toast.makeText(this, "结束", Toast.LENGTH_SHORT).show();
             btnTake.setText("录制");
         } else {
-            isRecord = true;
-            isStop = false;
+            startRecord();
             btnTake.setText("停止");
         }
     }
@@ -184,34 +195,34 @@ public class MainActivity extends AppCompatActivity
 //        Log.i(TAG, MessageFormat.format("耗时：{0, number} ms", (System.currentTimeMillis() - start)));
     }
 
+    private void startRecord() {
+        /* 确保文件不存在 */
+        File outputFile = new File(getOutputMediaDir(), "last.h264");
+        if (outputFile.exists()) {
+            outputFile.delete();
+        }
+
+        /* 初始化录制工具 */
+//      pamera.Size previewSize = parameters.getPreviewSize();
+        Camera.Size previewSize = mCamera.getParameters().getPreviewSize();
+        YuvUtil.prepare(previewSize.width,
+                previewSize.height,
+                OUT_WIDTH,
+                OUT_HEIGHT,
+                90,
+                false,
+                getOutputMediaDir(),
+                "last.h264");
+
+        isRecord = true;
+        isStop = false;
+    }
+
     private void processFrame(byte[] data, Camera camera) {
         long timestamp = System.currentTimeMillis();
-        Camera.Size size = camera.getParameters().getPreviewSize();
-//        int SRC_FRAME_WIDTH = size.width;
-//        int SRC_FRAME_HEIGHT = size.height;
-//        int DES_FRAME_WIDTH = OUT_WIDTH;
-//        int DES_FRAME_HEIGHT = OUT_HEIGHT;
-        // 此处将data数组保存在了指定的路径，保存类型为jpeg格式，但是普通的图片浏
-        // 览器是无法打开的，需要使用RawViewer等专业的工具打开。
-        // 定义与原始帧大小一样的outputData，因为YUV420所占内存是12Bits/Pixel，
-        // 每个Y为一个像素8bit＝1Byte，U＝2bit＝1/4(Byte)，V＝ 2bit =1/4(Byte)，
-        // Y值数量为480*270，则U=V＝480*270*(1/4)
-//        final byte[] outputData = new byte[DES_FRAME_WIDTH * DES_FRAME_HEIGHT * 3 / 2];
-        // call the JNI method to rotate frame data clockwise 90 degrees
-//        YuvUtil.dealYV12(data, outputData, SRC_FRAME_WIDTH, SRC_FRAME_HEIGHT, 90);
+        // 报像头获取的图片帧传送到 ndk 层交由 ffmpeg 进行编码保存
         YuvUtil.process(data);
         Log.i(TAG, MessageFormat.format("yuv处理费时：{0, number} ms", System.currentTimeMillis() - timestamp));
-//        testPrintBitmapSize(outputData, camera);
-//        new RxPermissions(MainActivity.this)
-//                .request(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-//                .subscribe(new Consumer<Boolean>() {
-//                    @Override
-//                    public void accept(Boolean grant) throws Exception {
-//                        if (grant) {
-//                            saveImageData(outputData);
-//                        }
-//                    }
-//                });
 
     }
 

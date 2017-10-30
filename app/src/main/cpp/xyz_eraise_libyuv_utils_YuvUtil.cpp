@@ -403,22 +403,15 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_stop
         LOGE(DEBUG, "Flushing encoder failed");
     }
 
-    LOGD(DEBUG, "write_trailer");
     av_write_trailer(pFormatCtx);
 
-    LOGD(DEBUG, "清空无用内存");
     // 清空无用内存
     if (video_st){
-        LOGD(DEBUG, "avocdec_close");
         avcodec_close(video_st->codec);
-        LOGD(DEBUG, "pFrame free");
         av_free(pFrame);
-        LOGD(DEBUG, "picture_buf free");
         av_free(picture_buf);
     }
-    LOGD(DEBUG, "avio_close(pFormatCtx->pb)");
     avio_close(pFormatCtx->pb);
-    LOGD(DEBUG, "avformat_free_context(pFormatCtx)");
     avformat_free_context(pFormatCtx);
     LOGI(DEBUG, "Success !!!!!!!!!!!!!!!!!!!!");
 }
