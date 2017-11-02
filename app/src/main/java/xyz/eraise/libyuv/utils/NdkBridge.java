@@ -4,7 +4,7 @@ package xyz.eraise.libyuv.utils;
  * Created by eraise on 2017/9/11.
  */
 
-public class YuvUtil {
+public class NdkBridge {
 
     static {
         System.loadLibrary("avcodec");

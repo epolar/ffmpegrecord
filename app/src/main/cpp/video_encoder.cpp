@@ -1,83 +1,18 @@
-#include <jni.h>
-#include <cstring>
-#include <log.h>
-#include <Arguments.cpp>
-#include <libyuv.h>
+//
+// Created by eraise on 2017/10/30.
+//
 
-#ifndef _Included_xyz_eraise_libyuv_utils_YuvUtil
-#define _Included_xyz_eraise_libyuv_utils_YuvUtil
+#include <video_encoder.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <libavformat/avformat.h>
-#include <libavutil/imgutils.h>
-
-bool DEBUG = true;
-
-AVFormatContext* pFormatCtx;
-AVOutputFormat* fmt;
-AVStream* video_st;
-AVCodecContext* pCodecCtx;
-AVCodec* pCodec;
-AVPacket pkt;
-uint8_t* picture_buf;
-AVFrame* pFrame;
-
-Arguments *arguments;
-u_long frame_count;
-
-void logcallback(void* ptr, int level, const char* fmt,va_list vl){
-    switch (level) {
-        case AV_LOG_ERROR:
-            LOGE(DEBUG, fmt, vl);
-        case AV_LOG_FATAL:
-            LOGF(DEBUG, fmt, vl);
-            break;
-        case AV_LOG_PANIC:
-        case AV_LOG_WARNING:
-            LOGW(DEBUG, fmt, vl);
-            break;
-        case AV_LOG_DEBUG:
-            LOGD(DEBUG, fmt, vl);
-            break;
-        case AV_LOG_VERBOSE:
-        case AV_LOG_INFO:
-            LOGI(DEBUG, fmt, vl);
-            break;
-    }
-}
-
-JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_prepare
-        (JNIEnv *env,
-         jclass jcls,
-         jint in_width,
-         jint in_height,
-         jint out_width,
-         jint out_height,
-         jint rotatemodel,
-         jboolean enable_mirror,
-         jstring video_base_url,
-         jstring video_name) {
-    LOGI(DEBUG, "prepare 开始");
-    arguments = new Arguments();
-    arguments->in_width = in_width;
-    arguments->in_height = in_height;
-    arguments->out_width = out_width;
-    arguments->out_height = out_height;
-    arguments->rotate_model = rotatemodel;
-    arguments->enable_mirror = enable_mirror;
-    arguments->video_base_url = (char *) env->GetStringUTFChars(video_base_url, 0);
-    arguments->video_name = (char *) env->GetStringUTFChars(video_name, 0);
-
+int video_encoder::init(Arguments* vargs) {
+    arguments = vargs;
     LOGI(DEBUG, "av_register_all");
     av_register_all();
     pFormatCtx = avformat_alloc_context();
     fmt = av_guess_format(NULL, arguments->video_name, NULL);
     LOGI(DEBUG, "av_guess_format %s", fmt->name);
     pFormatCtx->oformat = fmt;
-//    av_log_set_callback(logcallback);
+    av_log_set_callback(logcallback);
 
     char* output_url = strcat(arguments->video_base_url, arguments->video_name);
     LOGI(DEBUG, "output_url == %s", output_url);
@@ -104,7 +39,7 @@ JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_prepare
     pCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
     pCodecCtx->width = arguments->out_width;
     pCodecCtx->height = arguments->out_height;
-    pCodecCtx->bit_rate = 800000;
+    pCodecCtx->bit_rate = 400000;
     pCodecCtx->gop_size = 300;
     pCodecCtx->thread_count = 15;
 
@@ -147,9 +82,9 @@ JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_prepare
     }
 
     pFrame = av_frame_alloc();
-//    pFrame->width = pCodecCtx->width;
-//    pFrame->height = pCodecCtx->height;
-//    pFrame->format = pCodecCtx->pix_fmt;
+    pFrame->width = pCodecCtx->width;
+    pFrame->height = pCodecCtx->height;
+    pFrame->format = pCodecCtx->pix_fmt;
 
     int picture_size = avpicture_get_size(pCodecCtx->pix_fmt, pCodecCtx->width, pCodecCtx->height);
     picture_buf = (uint8_t *)av_malloc((size_t)picture_size * 3);
@@ -158,54 +93,10 @@ JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_prepare
     avformat_write_header(pFormatCtx,NULL);
 
     av_new_packet(&pkt,picture_size);
-
-    LOGD(DEBUG, "初始化完成");
-
     return 0;
 }
 
-int flush_encoder(AVFormatContext *fmt_ctx,unsigned int stream_index){
-    LOGD(DEBUG, "flush_encoder");
-    int ret;
-    int got_frame;
-    AVPacket enc_pkt;
-    if (!(fmt_ctx->streams[stream_index]->codec->codec->capabilities &
-          CODEC_CAP_DELAY))
-        return 0;
-    while (1) {
-        enc_pkt.data = NULL;
-        enc_pkt.size = 0;
-        av_init_packet(&enc_pkt);
-        ret = avcodec_encode_video2 (fmt_ctx->streams[stream_index]->codec, &enc_pkt,
-                                     NULL, &got_frame);
-        av_frame_free(NULL);
-        if (ret < 0)
-            break;
-        if (!got_frame){
-            ret=0;
-            break;
-        }
-        LOGI(DEBUG, "Flush Encoder: Succeed to encode 1 frame!\tsize:%5d\n", enc_pkt.size);
-        /* mux encoded frame */
-        ret = av_write_frame(fmt_ctx, &enc_pkt);
-        if (ret < 0)
-            break;
-    }
-    return ret;
-}
-
-bool processing = false;
-
-/**
- * 处理每一帧yuv：
- * 进行缩放、旋转、裁剪等操作后，编码到 h264
- */
-JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_process
-        (JNIEnv *env,
-         jclass jcls,
-         jbyteArray data) {
-//    LOGD(DEBUG, "process...");
-
+void video_encoder::encodeFrame(uint8* srcData) {
     if (processing) {
         return;
     }
@@ -217,8 +108,6 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_process
     int out_height = arguments->out_height;
     int rotate_model = arguments->rotate_model;
     bool enable_mirror = arguments->enable_mirror;
-
-    jbyte *srcData = env->GetByteArrayElements(data, 0);
 
 //    LOGD(DEBUG, "准备转换为i420");
     int srcYSize = in_width * in_height;
@@ -385,20 +274,45 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_process
 //    free(yvData);
     free(cropData);
 
-    env->ReleaseByteArrayElements(data, srcData, 0);
-
     processing = false;
 }
 
-JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_stop
-        (JNIEnv *env,
-         jclass jcls) {
-    LOGD(DEBUG, "stop...");
+int video_encoder::flush_encoder(unsigned int stream_index) {
+    LOGD(DEBUG, "flush_encoder");
+    int ret;
+    int got_frame;
+    AVPacket enc_pkt;
+    if (!(pFormatCtx->streams[stream_index]->codec->codec->capabilities &
+          CODEC_CAP_DELAY))
+        return 0;
+    while (1) {
+        enc_pkt.data = NULL;
+        enc_pkt.size = 0;
+        av_init_packet(&enc_pkt);
+        ret = avcodec_encode_video2 (pFormatCtx->streams[stream_index]->codec, &enc_pkt,
+                                     NULL, &got_frame);
+        av_frame_free(NULL);
+        if (ret < 0)
+            break;
+        if (!got_frame){
+            ret=0;
+            break;
+        }
+        LOGI(DEBUG, "Flush Encoder: Succeed to encode 1 frame!\tsize:%5d\n", enc_pkt.size);
+        /* mux encoded frame */
+        ret = av_write_frame(pFormatCtx, &enc_pkt);
+        if (ret < 0)
+            break;
+    }
+    return ret;
+}
+
+void video_encoder::stop() {
     while (processing) {
         // ... 阻塞着等 processing 为false
     }
     // 刷新缓存区数据
-    int ret = flush_encoder(pFormatCtx,0);
+    int ret = flush_encoder(0);
     if (ret < 0) {
         LOGE(DEBUG, "Flushing encoder failed");
     }
@@ -413,10 +327,4 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_YuvUtil_stop
     }
     avio_close(pFormatCtx->pb);
     avformat_free_context(pFormatCtx);
-    LOGI(DEBUG, "Success !!!!!!!!!!!!!!!!!!!!");
 }
-
-#ifdef __cplusplus
-}
-#endif
-#endif

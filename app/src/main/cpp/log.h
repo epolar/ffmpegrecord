@@ -10,3 +10,7 @@
 #define LOGI(debug, ...) if(debug){__android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__);}  // 定义LOGI类型
 #define LOGW(debug, ...) if(debug){__android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__);}  // 定义LOGW类型
 #define LOGF(debug, ...) if(debug){__android_log_print(ANDROID_LOG_FATAL, LOG_TAG, __VA_ARGS__);} // 定义LOGF类型
+
+const bool DEBUG = true;
+
+void logcallback(void* ptr, int level, const char* fmt,va_list vl);

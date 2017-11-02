@@ -65,8 +65,10 @@ include $(PREBUILT_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_LDLIBS := -L$(SYSROOT)/usr/lib -llog -lz
 LOCAL_MODULE := yuvutil
-LOCAL_SRC_FILES := xyz_eraise_libyuv_utils_YuvUtil.cpp \
-                   Arguments.cpp
+LOCAL_SRC_FILES := xyz_eraise_libyuv_utils_NdkBridge.cpp \
+                   Arguments.cpp \
+                   log.cpp \
+                   video_encoder.cpp
 LOCAL_C_INCLUDES += -L$(SYSROOT)/usr/include
 LOCAL_C_INCLUDES += $(INCLUDE_PATH)
 LOCAL_SHARED_LIBRARIES := fdk-aac \

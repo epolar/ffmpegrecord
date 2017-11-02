@@ -28,10 +28,11 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.List;
 
 import io.reactivex.functions.Consumer;
-import xyz.eraise.libyuv.utils.YuvUtil;
+import xyz.eraise.libyuv.utils.NdkBridge;
 
 public class MainActivity extends AppCompatActivity
         implements SurfaceHolder.Callback, Camera.PreviewCallback {
@@ -48,8 +49,9 @@ public class MainActivity extends AppCompatActivity
     private static final String TAG = "MainActivity";
 
     private boolean isInitEncode = false;
-    private boolean isStop = false;
     private boolean isRecord = false;
+
+    private int mBufferSizeInBytes;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,14 +73,14 @@ public class MainActivity extends AppCompatActivity
         int sampleRateHz = 44100;
         int channelConfig = AudioFormat.CHANNEL_IN_STEREO;
         int audioFormat = AudioFormat.ENCODING_PCM_16BIT;
-        int bufferSizeInBytes = AudioRecord.getMinBufferSize(sampleRateHz,
+        mBufferSizeInBytes = AudioRecord.getMinBufferSize(sampleRateHz,
                 channelConfig,
                 audioFormat);
         mAudioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
                 sampleRateHz,
                 channelConfig,
                 audioFormat,
-                bufferSizeInBytes);
+                mBufferSizeInBytes);
         mAudioRecord.setRecordPositionUpdateListener(new AudioRecord.OnRecordPositionUpdateListener() {
             @Override
             public void onMarkerReached(AudioRecord recorder) {
@@ -105,6 +107,11 @@ public class MainActivity extends AppCompatActivity
                             Camera.Parameters parameters = mCamera.getParameters();
 //                            parameters.setPictureSize(800, 480);
                             parameters.setPreviewFormat(ImageFormat.YV12);
+                            Camera.Area area = new Camera.Area(new Rect(-100, -100, 100, 100), 1000);
+                            List<Camera.Area> focusAreas = new ArrayList<>();
+                            focusAreas.add(area);
+                            parameters.setFocusAreas(focusAreas);
+                            parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
 
                             List<Camera.Size> previewSizes = parameters.getSupportedPreviewSizes();
                             Camera.Size previewSize = null;
@@ -170,9 +177,8 @@ public class MainActivity extends AppCompatActivity
 
     public void takePhoto() {
         if (isRecord) {
-            isStop = true;
             isRecord = false;
-            YuvUtil.stop();
+            NdkBridge.stop();
             Toast.makeText(this, "结束", Toast.LENGTH_SHORT).show();
             btnTake.setText("录制");
         } else {
@@ -188,8 +194,6 @@ public class MainActivity extends AppCompatActivity
         if (!isInitEncode)
             return;
 //        Log.i(TAG, "preview");
-        if (isStop)
-            return;
 //        long start = System.currentTimeMillis();
         processFrame(data, camera);
 //        Log.i(TAG, MessageFormat.format("耗时：{0, number} ms", (System.currentTimeMillis() - start)));
@@ -205,7 +209,7 @@ public class MainActivity extends AppCompatActivity
         /* 初始化录制工具 */
 //      pamera.Size previewSize = parameters.getPreviewSize();
         Camera.Size previewSize = mCamera.getParameters().getPreviewSize();
-        YuvUtil.prepare(previewSize.width,
+        NdkBridge.prepare(previewSize.width,
                 previewSize.height,
                 OUT_WIDTH,
                 OUT_HEIGHT,
@@ -215,15 +219,28 @@ public class MainActivity extends AppCompatActivity
                 "last.h264");
 
         isRecord = true;
-        isStop = false;
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                recordAudio();
+            }
+        }).start();
+    }
+
+    private void recordAudio() {
+        byte[] buf = new byte[mBufferSizeInBytes];
+        while (isRecord) {
+            mAudioRecord.read(buf, 0, mBufferSizeInBytes);
+        }
+
     }
 
     private void processFrame(byte[] data, Camera camera) {
         long timestamp = System.currentTimeMillis();
         // 报像头获取的图片帧传送到 ndk 层交由 ffmpeg 进行编码保存
-        YuvUtil.process(data);
+        NdkBridge.process(data);
         Log.i(TAG, MessageFormat.format("yuv处理费时：{0, number} ms", System.currentTimeMillis() - timestamp));
-
     }
 
     // save image to sdcard path: Pictures/MyTestImage/
