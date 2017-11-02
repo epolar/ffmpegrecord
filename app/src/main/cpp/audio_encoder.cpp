@@ -4,16 +4,22 @@
 #include <audio_encoder.h>
 
 int audio_encoder::init(Arguments* vargs) {
+    LOGD(DEBUG, "init audio encoder")
     arguments = vargs;
+    LOGD(DEBUG, "av_register_all for audio")
     // 注册 ffmpeg 所有的编解码器
     av_register_all();
+    LOGD(DEBUG, "avformat_alloc_context")
     pFormatCtx = avformat_alloc_context();
     av_log_set_callback(logcallback);
 
+    LOGD(DEBUG, "avformat_alloc_output_context2");
     avformat_alloc_output_context2(&pFormatCtx, NULL, NULL, vargs->audio_name);
     fmt = pFormatCtx->oformat;
 
-    char* output_url = strcat(arguments->base_url, arguments->audio_name);
+    char base_url[strlen(arguments->base_url)];
+    strcpy(base_url, arguments->base_url);
+    char* output_url = strcat(base_url, arguments->audio_name);
     LOGI(DEBUG, "audio output_url == %s", output_url);
 
     if (avio_open(&pFormatCtx->pb, output_url, AVIO_FLAG_READ_WRITE) < 0) {
@@ -71,7 +77,8 @@ int audio_encoder::init(Arguments* vargs) {
 
 void audio_encoder::encodeFrame(uint8* srcData) {
     pFrame->data[0] = srcData;
-    pFrame->pts = frame_count ++;
+    // 该帧的时间
+    pFrame->pts = frame_count++;//(utils::getCurrentTime() - arguments->start_time);
     int got_frame = 0;
     int ret = avcodec_encode_audio2(pCodecCtx, &pkt, pFrame, &got_frame);
     if (ret < 0) {

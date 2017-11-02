@@ -24,8 +24,9 @@ private:
     uint8_t* picture_buf;
     AVFrame* pFrame;
 
+    int64_t frame_count;
+
     Arguments* arguments;
-    u_long frame_count;
     bool processing = false;
 };
 

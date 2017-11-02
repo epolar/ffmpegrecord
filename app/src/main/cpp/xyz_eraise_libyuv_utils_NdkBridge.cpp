@@ -1,6 +1,7 @@
 #include <base_include.h>
 #include <video_encoder.h>
 #include <audio_encoder.h>
+#include <media_muxer.h>
 
 #ifndef _Included_xyz_eraise_libyuv_utils_NdkBridge
 #define _Included_xyz_eraise_libyuv_utils_NdkBridge
@@ -36,12 +37,12 @@ JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_prepare
     arguments->base_url = (char *) env->GetStringUTFChars(base_url, 0);
     arguments->video_name = (char *) env->GetStringUTFChars(video_name, 0);
     arguments->audio_name = (char *) env->GetStringUTFChars(audio_name, 0);
-    LOGI(DEBUG, "base_url == %s", arguments->base_url);
+    arguments->start_time = utils::getCurrentTime();
 
-    videoEncoder = new video_encoder();
-    videoEncoder->init(arguments);
     audioEncoder = new audio_encoder();
     audioEncoder->init(arguments);
+    videoEncoder = new video_encoder();
+    videoEncoder->init(arguments);
 
     LOGD(DEBUG, "初始化完成");
 
@@ -86,6 +87,7 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_stop
     LOGD(DEBUG, "stop...");
     videoEncoder->stop();
     audioEncoder->stop();
+    media_muxer::mux(arguments);
     LOGI(DEBUG, "Success !!!!!!!!!!!!!!!!!!!!");
 }
 

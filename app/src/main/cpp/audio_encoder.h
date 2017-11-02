@@ -23,9 +23,9 @@ private:
     AVPacket pkt;
     AVFrame* pFrame;
 
-    u_long frame_count;
     int size;
     uint8_t* frame_buf;
+    int64_t frame_count;
 
     Arguments* arguments;
     bool processing = false;

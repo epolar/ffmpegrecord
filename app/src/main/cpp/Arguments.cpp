@@ -8,4 +8,5 @@ public :
     int in_width, in_height, out_width, out_height, rotate_model;
     bool enable_mirror;
     char *base_url, *video_name, *audio_name;
+    long start_time;
 };

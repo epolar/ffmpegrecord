@@ -95,6 +95,8 @@ int video_encoder::init(Arguments* vargs) {
     avformat_write_header(pFormatCtx,NULL);
 
     av_new_packet(&pkt,picture_size);
+
+    LOGD(DEBUG, "视频编码器初始化完成")
     return 0;
 }
 
@@ -238,8 +240,9 @@ void video_encoder::encodeFrame(uint8* srcData) {
     pFrame->data[1] = cropDataU;
 //    LOGD(DEBUG, "设置data[2]");
     pFrame->data[2] = cropDataV;
-    // 该yuv在视频的第几帧
-    pFrame->pts = frame_count ++;
+    // 该yuv在视频的时间
+    pFrame->pts = frame_count++;//(utils::getCurrentTime() - arguments->start_time);
+    LOGD(DEBUG, "pts == %ld", (long)pFrame->pts);
     int got_picture = 0;
     // 进行编码
 //    LOGD(DEBUG, "avcodec_encode_video2");

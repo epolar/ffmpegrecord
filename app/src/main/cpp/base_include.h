@@ -10,6 +10,7 @@
 #include <log.h>
 #include <Arguments.cpp>
 #include <libyuv.h>
+#include <utils.h>
 
 #ifdef __cplusplus
 extern "C" {

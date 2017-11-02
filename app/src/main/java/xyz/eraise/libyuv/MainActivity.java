@@ -70,7 +70,7 @@ public class MainActivity extends AppCompatActivity
         SurfaceHolder holder = mPreview.getHolder();
         holder.addCallback(this);
 
-        int sampleRateHz = 44100;
+        int sampleRateHz = getRecordRate();
         int channelConfig = AudioFormat.CHANNEL_IN_STEREO;
         int audioFormat = AudioFormat.ENCODING_PCM_16BIT;
         mBufferSizeInBytes = AudioRecord.getMinBufferSize(sampleRateHz,
@@ -92,6 +92,17 @@ public class MainActivity extends AppCompatActivity
 
             }
         });
+    }
+
+    public int getRecordRate() {
+        for (int rate : new int[] {44100, 22050, 11025, 16000, 8000}) {  // add the rates you wish to check against
+            int bufferSize = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_CONFIGURATION_DEFAULT, AudioFormat.ENCODING_PCM_16BIT);
+            if (bufferSize > 0) {
+                // buffer size is valid, Sample rate supported
+                return rate;
+            }
+        }
+        return 8000;
     }
 
     private void openCamera() {
@@ -148,6 +159,8 @@ public class MainActivity extends AppCompatActivity
                             Log.i(TAG, "init encode");
                             isInitEncode = true;
                         }
+                        if (mCamera != null)
+                            mCamera.startPreview();
                     }
                 });
     }
@@ -162,8 +175,6 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         openCamera();
-        if (mCamera != null)
-            mCamera.startPreview();
     }
 
     @Override
