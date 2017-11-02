@@ -1,5 +1,6 @@
 #include <base_include.h>
 #include <video_encoder.h>
+#include <audio_encoder.h>
 
 #ifndef _Included_xyz_eraise_libyuv_utils_NdkBridge
 #define _Included_xyz_eraise_libyuv_utils_NdkBridge
@@ -10,6 +11,7 @@ extern "C" {
 
 Arguments* arguments;
 video_encoder* videoEncoder;
+audio_encoder* audioEncoder;
 
 JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_prepare
         (JNIEnv *env,
@@ -20,8 +22,9 @@ JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_prepare
          jint out_height,
          jint rotatemodel,
          jboolean enable_mirror,
-         jstring video_base_url,
-         jstring video_name) {
+         jstring base_url,
+         jstring video_name,
+         jstring audio_name) {
     LOGI(DEBUG, "prepare 开始");
     arguments = new Arguments();
     arguments->in_width = in_width;
@@ -30,11 +33,15 @@ JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_prepare
     arguments->out_height = out_height;
     arguments->rotate_model = rotatemodel;
     arguments->enable_mirror = enable_mirror;
-    arguments->video_base_url = (char *) env->GetStringUTFChars(video_base_url, 0);
+    arguments->base_url = (char *) env->GetStringUTFChars(base_url, 0);
     arguments->video_name = (char *) env->GetStringUTFChars(video_name, 0);
+    arguments->audio_name = (char *) env->GetStringUTFChars(audio_name, 0);
+    LOGI(DEBUG, "base_url == %s", arguments->base_url);
 
     videoEncoder = new video_encoder();
     videoEncoder->init(arguments);
+    audioEncoder = new audio_encoder();
+    audioEncoder->init(arguments);
 
     LOGD(DEBUG, "初始化完成");
 
@@ -45,7 +52,7 @@ JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_prepare
  * 处理每一帧yuv：
  * 进行缩放、旋转、裁剪等操作后，编码到 h264
  */
-JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_process
+JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_processVideo
         (JNIEnv *env,
          jclass jcls,
          jbyteArray data) {
@@ -59,11 +66,26 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_process
 
 }
 
+/**
+ * 处理音频，进行编码到aac
+ */
+JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_processAudio
+        (JNIEnv *env,
+         jclass jcls,
+         jbyteArray data) {
+    jbyte* srcData = env->GetByteArrayElements(data, 0);
+
+    audioEncoder->encodeFrame((uint8*) srcData);
+
+    env->ReleaseByteArrayElements(data, srcData, 0);
+}
+
 JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_stop
         (JNIEnv *env,
          jclass jcls) {
     LOGD(DEBUG, "stop...");
     videoEncoder->stop();
+    audioEncoder->stop();
     LOGI(DEBUG, "Success !!!!!!!!!!!!!!!!!!!!");
 }
 

@@ -68,7 +68,8 @@ LOCAL_MODULE := yuvutil
 LOCAL_SRC_FILES := xyz_eraise_libyuv_utils_NdkBridge.cpp \
                    Arguments.cpp \
                    log.cpp \
-                   video_encoder.cpp
+                   video_encoder.cpp \
+                   audio_encoder.cpp
 LOCAL_C_INCLUDES += -L$(SYSROOT)/usr/include
 LOCAL_C_INCLUDES += $(INCLUDE_PATH)
 LOCAL_SHARED_LIBRARIES := fdk-aac \

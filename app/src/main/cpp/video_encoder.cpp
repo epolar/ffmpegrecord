@@ -14,8 +14,10 @@ int video_encoder::init(Arguments* vargs) {
     pFormatCtx->oformat = fmt;
     av_log_set_callback(logcallback);
 
-    char* output_url = strcat(arguments->video_base_url, arguments->video_name);
-    LOGI(DEBUG, "output_url == %s", output_url);
+    char base_url[strlen(arguments->base_url)];
+    strcpy(base_url, arguments->base_url);
+    char* output_url = strcat(base_url, arguments->video_name);
+    LOGI(DEBUG, "video_output_url == %s", output_url);
 
     // 打开写入文件
     if (avio_open(&pFormatCtx->pb, output_url, AVIO_FLAG_READ_WRITE) < 0) {

@@ -96,7 +96,7 @@ public class MainActivity extends AppCompatActivity
 
     private void openCamera() {
         new RxPermissions(this)
-                .request(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                .request(Manifest.permission.CAMERA)
                 .subscribe(new Consumer<Boolean>() {
                     @Override
                     public void accept(Boolean grant) throws Exception {
@@ -182,8 +182,17 @@ public class MainActivity extends AppCompatActivity
             Toast.makeText(this, "结束", Toast.LENGTH_SHORT).show();
             btnTake.setText("录制");
         } else {
-            startRecord();
-            btnTake.setText("停止");
+            new RxPermissions(MainActivity.this)
+                    .request(Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    .subscribe(new Consumer<Boolean>() {
+                        @Override
+                        public void accept(Boolean aBoolean) throws Exception {
+                            if (aBoolean) {
+                                startRecord();
+                                btnTake.setText("停止");
+                            }
+                        }
+                    });
         }
     }
 
@@ -200,10 +209,16 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void startRecord() {
+        String videoFileName = "last.h264";
+        String audioFileName = "last.aac";
         /* 确保文件不存在 */
-        File outputFile = new File(getOutputMediaDir(), "last.h264");
-        if (outputFile.exists()) {
-            outputFile.delete();
+        File videoFile = new File(getOutputMediaDir(), videoFileName);
+        if (videoFile.exists()) {
+            videoFile.delete();
+        }
+        File audioFile = new File(getOutputMediaDir(), audioFileName);
+        if (audioFile.exists()) {
+            audioFile.delete();
         }
 
         /* 初始化录制工具 */
@@ -216,7 +231,8 @@ public class MainActivity extends AppCompatActivity
                 90,
                 false,
                 getOutputMediaDir(),
-                "last.h264");
+                videoFileName,
+                audioFileName);
 
         isRecord = true;
 
@@ -229,17 +245,19 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void recordAudio() {
+        mAudioRecord.startRecording();
         byte[] buf = new byte[mBufferSizeInBytes];
         while (isRecord) {
             mAudioRecord.read(buf, 0, mBufferSizeInBytes);
+            NdkBridge.processAudio(buf);
         }
-
+        mAudioRecord.stop();
     }
 
     private void processFrame(byte[] data, Camera camera) {
         long timestamp = System.currentTimeMillis();
         // 报像头获取的图片帧传送到 ndk 层交由 ffmpeg 进行编码保存
-        NdkBridge.process(data);
+        NdkBridge.processVideo(data);
         Log.i(TAG, MessageFormat.format("yuv处理费时：{0, number} ms", System.currentTimeMillis() - timestamp));
     }
 

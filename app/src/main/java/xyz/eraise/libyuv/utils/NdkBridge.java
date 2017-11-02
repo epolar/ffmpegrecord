@@ -33,13 +33,16 @@ public class NdkBridge {
                                       int rotateModel,
                                       boolean enableMirror,
                                       String videoBaseUrl,
-                                      String videoName);
+                                      String videoName,
+                                      String audioName);
 
     /**
      *
      * @param data
      */
-    public static native void process(byte[] data);
+    public static native void processVideo(byte[] data);
+
+    public static native void processAudio(byte[] data);
 
     public static native void stop();
 }
