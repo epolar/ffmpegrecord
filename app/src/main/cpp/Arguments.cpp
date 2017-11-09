@@ -9,4 +9,7 @@ public :
     bool enable_mirror;
     char *base_url, *video_name, *audio_name;
     long start_time;
+    int video_bit_rate = 400;
+    int video_fps = 25;
+    int audio_sample_rate = 44100;
 };

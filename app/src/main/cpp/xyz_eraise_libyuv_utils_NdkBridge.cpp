@@ -61,7 +61,7 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_processVideo
 
     jbyte* srcData = env->GetByteArrayElements(data, 0);
 
-    videoEncoder->encodeFrame((uint8*) srcData);
+    videoEncoder->pushFrame((uint8 *) srcData);
 
     env->ReleaseByteArrayElements(data, srcData, 0);
 
@@ -87,6 +87,7 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_stop
     LOGD(DEBUG, "stop...");
     videoEncoder->stop();
     audioEncoder->stop();
+    pthread_join(videoEncoder->encode_thread, NULL);
     media_muxer::mux(arguments);
     LOGI(DEBUG, "Success !!!!!!!!!!!!!!!!!!!!");
 }

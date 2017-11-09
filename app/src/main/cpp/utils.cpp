@@ -7,8 +7,12 @@
 #include <malloc.h>
 #include "utils.h"
 
+/**
+ *
+ * @return
+ */
 long utils::getCurrentTime() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    return (long)tv.tv_sec * 1000 + (long)tv.tv_usec / 1000;
 }

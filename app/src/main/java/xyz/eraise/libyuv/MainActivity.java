@@ -31,7 +31,9 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.reactivex.Observable;
 import io.reactivex.functions.Consumer;
+import io.reactivex.schedulers.Schedulers;
 import xyz.eraise.libyuv.utils.NdkBridge;
 
 public class MainActivity extends AppCompatActivity
@@ -53,6 +55,8 @@ public class MainActivity extends AppCompatActivity
 
     private int mBufferSizeInBytes;
 
+    private volatile byte[] lastFrame;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -64,6 +68,12 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View v) {
                 takePhoto();
+            }
+        });
+        findViewById(R.id.guideline_video).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                autoFocus();
             }
         });
 
@@ -118,11 +128,19 @@ public class MainActivity extends AppCompatActivity
                             Camera.Parameters parameters = mCamera.getParameters();
 //                            parameters.setPictureSize(800, 480);
                             parameters.setPreviewFormat(ImageFormat.YV12);
-                            Camera.Area area = new Camera.Area(new Rect(-100, -100, 100, 100), 1000);
-                            List<Camera.Area> focusAreas = new ArrayList<>();
-                            focusAreas.add(area);
-                            parameters.setFocusAreas(focusAreas);
-                            parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+
+                            List<String> focusModeList = parameters.getSupportedFocusModes();
+                            if (focusModeList.contains(Camera.Parameters.FOCUS_MODE_AUTO)) {
+                                Camera.Area area = new Camera.Area(new Rect(-100, -100, 100, 100), 1000);
+                                List<Camera.Area> focusAreas = new ArrayList<>();
+                                focusAreas.add(area);
+                                parameters.setFocusAreas(focusAreas);
+                                parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+                            }
+
+                            List<int[]> supportFpsRange = parameters.getSupportedPreviewFpsRange();
+                            int[] fpsRange = supportFpsRange.get(0);
+                            parameters.setPreviewFpsRange(fpsRange[0], fpsRange[1]);
 
                             List<Camera.Size> previewSizes = parameters.getSupportedPreviewSizes();
                             Camera.Size previewSize = null;
@@ -189,9 +207,9 @@ public class MainActivity extends AppCompatActivity
     public void takePhoto() {
         if (isRecord) {
             isRecord = false;
-            NdkBridge.stop();
-            Toast.makeText(this, "结束", Toast.LENGTH_SHORT).show();
-            btnTake.setText("录制");
+//            NdkBridge.stop();
+//            Toast.makeText(this, "结束", Toast.LENGTH_SHORT).show();
+//            btnTake.setText("录制");
         } else {
             new RxPermissions(MainActivity.this)
                     .request(Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -215,8 +233,21 @@ public class MainActivity extends AppCompatActivity
             return;
 //        Log.i(TAG, "preview");
 //        long start = System.currentTimeMillis();
-        processFrame(data, camera);
+        lastFrame = data;
 //        Log.i(TAG, MessageFormat.format("耗时：{0, number} ms", (System.currentTimeMillis() - start)));
+    }
+
+    private void autoFocus() {
+        mCamera.autoFocus(new Camera.AutoFocusCallback() {
+            @Override
+            public void onAutoFocus(boolean success, Camera camera) {
+                if (success) {
+                    Log.d(TAG, "focus success");
+                } else {
+                    Log.d(TAG, "focus fail");
+                }
+            }
+        });
     }
 
     private void startRecord() {
@@ -253,6 +284,23 @@ public class MainActivity extends AppCompatActivity
                 recordAudio();
             }
         }).start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (isRecord) {
+                    if (lastFrame != null)
+                        processFrame(lastFrame.clone(), null);
+                }
+                NdkBridge.stop();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this, "结束", Toast.LENGTH_SHORT).show();
+                        btnTake.setText("录制");
+                    }
+                });
+            }
+        }).start();
     }
 
     private void recordAudio() {
@@ -266,10 +314,20 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void processFrame(byte[] data, Camera camera) {
-        long timestamp = System.currentTimeMillis();
         // 报像头获取的图片帧传送到 ndk 层交由 ffmpeg 进行编码保存
         NdkBridge.processVideo(data);
-        Log.i(TAG, MessageFormat.format("yuv处理费时：{0, number} ms", System.currentTimeMillis() - timestamp));
+//        Observable.just(data)
+//                .subscribeOn(Schedulers.io())
+//                .observeOn(Schedulers.io())
+//                .subscribe(new Consumer<byte[]>() {
+//                    @Override
+//                    public void accept(byte[] bytes) throws Exception {
+//                        long timestamp = System.currentTimeMillis();
+//                        // 报像头获取的图片帧传送到 ndk 层交由 ffmpeg 进行编码保存
+//                        NdkBridge.processVideo(bytes);
+//                        Log.i(TAG, MessageFormat.format("yuv处理费时：{0, number} ms", System.currentTimeMillis() - timestamp));
+//                    }
+//                });
     }
 
     // save image to sdcard path: Pictures/MyTestImage/

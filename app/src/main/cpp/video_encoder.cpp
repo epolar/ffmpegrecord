@@ -6,6 +6,8 @@
 
 int video_encoder::init(Arguments* vargs) {
     arguments = vargs;
+    frame_duration = 1000 / arguments->video_fps;
+    last_encode_time = utils::getCurrentTime() - frame_duration;
     LOGI(DEBUG, "av_register_all");
     av_register_all();
     pFormatCtx = avformat_alloc_context();
@@ -41,25 +43,27 @@ int video_encoder::init(Arguments* vargs) {
     pCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
     pCodecCtx->width = arguments->out_width;
     pCodecCtx->height = arguments->out_height;
-    pCodecCtx->bit_rate = 400000;
-    pCodecCtx->gop_size = 300;
-    pCodecCtx->thread_count = 15;
+    pCodecCtx->bit_rate = arguments->video_bit_rate * 1000;
+    pCodecCtx->thread_count = 5;
 
-    pCodecCtx->time_base.num = 1;
-    // 帧率
-    pCodecCtx->time_base.den = 30;
+    pCodecCtx->time_base.num = 1000;
+    pCodecCtx->time_base.den = arguments->video_fps * 1000;
+    pCodecCtx->gop_size = arguments->video_fps << 1;
 
     pCodecCtx->qmin = 10;
     pCodecCtx->qmax = 51;
 
-    pCodecCtx->max_b_frames = 3;
+//    pCodecCtx->max_b_frames = 30;
 
     // Set Option
     AVDictionary *param = 0;
     //H.264
     if(pCodecCtx->codec_id == AV_CODEC_ID_H264) {
-        av_dict_set(&param, "preset", "slow", 0);
+//        av_dict_set(&param, "preset", "slow", 0);
+//        av_dict_set(&param, "preset", "superfast", 0);
+        av_opt_set(pCodecCtx->priv_data, "preset", "ultrafast", 0);
         av_dict_set(&param, "tune", "zerolatency", 0);
+        av_dict_set(&param, "profile", "baseline", 0);
         //av_dict_set(&param, "profile", "main", 0);
     }
     //H.265
@@ -89,23 +93,20 @@ int video_encoder::init(Arguments* vargs) {
     pFrame->format = pCodecCtx->pix_fmt;
 
     int picture_size = avpicture_get_size(pCodecCtx->pix_fmt, pCodecCtx->width, pCodecCtx->height);
-    picture_buf = (uint8_t *)av_malloc((size_t)picture_size * 3);
+    picture_buf = (uint8_t *)av_malloc((size_t)picture_size);
     avpicture_fill((AVPicture *)pFrame, picture_buf, pCodecCtx->pix_fmt, pCodecCtx->width, pCodecCtx->height);
 
     avformat_write_header(pFormatCtx,NULL);
 
-    av_new_packet(&pkt,picture_size);
+    pthread_create(&encode_thread, NULL, video_encoder::start_encode, this);
+
+//    av_new_packet(&pkt,picture_size);
 
     LOGD(DEBUG, "视频编码器初始化完成")
     return 0;
 }
 
-void video_encoder::encodeFrame(uint8* srcData) {
-    if (processing) {
-        return;
-    }
-    processing = true;
-
+uint8 *video_encoder::frame_filter(uint8 *srcData) {
     int in_width = arguments->in_width;
     int in_height = arguments->in_height;
     int out_width = arguments->out_width;
@@ -121,9 +122,9 @@ void video_encoder::encodeFrame(uint8* srcData) {
     int srcStrideY = in_width;
     int srcStrideU = in_width >> 1;
     int srcStrideV = srcStrideU;
-    uint8 *srcDataY = (uint8 *)srcData;
-    uint8 *srcDataU = (uint8 *)srcData + srcYSize;
-    uint8 *srcDataV = (uint8 *)srcData + srcYSize + srcUSize;
+    uint8 *srcDataY = srcData;
+    uint8 *srcDataU = srcData + srcYSize;
+    uint8 *srcDataV = srcData + srcYSize + srcUSize;
     // 转换成i420
     uint8 *tempUVData = (uint8 *)malloc((size_t)srcUSize);
     memcpy(tempUVData, srcDataU, (size_t)srcUSize);
@@ -176,7 +177,7 @@ void video_encoder::encodeFrame(uint8* srcData) {
                       scaleDataU, scaleStrideU,
                       scaleDataV, scaleStrideV,
                       scaleWidth, scaleHeight,
-                      libyuv::FilterMode::kFilterBilinear);
+                      libyuv::FilterMode::kFilterNone);
 //    LOGD(DEBUG, "等比缩放完成");
 
 //    LOGD(DEBUG, "准备旋转&裁剪");
@@ -227,37 +228,11 @@ void video_encoder::encodeFrame(uint8* srcData) {
                            out_width, out_height);
         free(cropData);
         cropData = mirrorData;
-        cropDataY = mirrorDataY;
-        cropDataU = mirrorDataU;
-        cropDataV = mirrorDataV;
+//        cropDataY = mirrorDataY;
+//        cropDataU = mirrorDataU;
+//        cropDataV = mirrorDataV;
 //        LOGD(DEBUG, "镜像完成");
     }
-
-//    LOGD(DEBUG, "设置data[0]");
-    // 设置yuv数据到 AVFrame
-    pFrame->data[0] = cropDataY;
-//    LOGD(DEBUG, "设置data[1]");
-    pFrame->data[1] = cropDataU;
-//    LOGD(DEBUG, "设置data[2]");
-    pFrame->data[2] = cropDataV;
-    // 该yuv在视频的时间
-    pFrame->pts = frame_count++;//(utils::getCurrentTime() - arguments->start_time);
-    LOGD(DEBUG, "pts == %ld", (long)pFrame->pts);
-    int got_picture = 0;
-    // 进行编码
-//    LOGD(DEBUG, "avcodec_encode_video2");
-    int ret = avcodec_encode_video2(pCodecCtx, &pkt, pFrame, &got_picture);
-//    LOGD(DEBUG, "avcodec_encode_video2 成功");
-    if(ret < 0){
-        LOGE(DEBUG, "Failed to encode!");
-    }
-    if (got_picture==1){
-//        LOGI(DEBUG, "Succeed to encode frame: %5ld\tsize:%5d\n",frame_count,pkt.size);
-        pkt.stream_index = video_st->index;
-        ret = av_write_frame(pFormatCtx, &pkt);
-        av_packet_unref(&pkt);
-    }
-//    LOGD(DEBUG, "av_write_frame 处理完成");
 
 //    LOGI("转换回YV12");
 //    tempUVData = (uint8 *)malloc((size_t)cropSize);
@@ -275,15 +250,67 @@ void video_encoder::encodeFrame(uint8* srcData) {
 //    LOGI("结束I420 -> YV12");
 //    free(cropData);
 
-//    env->SetByteArrayRegion(resultdata, 0, cropSize, (jbyte *)cropData);
-//    free(yvData);
-    free(cropData);
+    return cropData;
+}
 
-    processing = false;
+void video_encoder::encode_frame(uint8 *yuvData) {
+    int yuvYSize = arguments->out_width * arguments->out_height;
+    int yuvUSize = (arguments->out_width >> 1) * (arguments->out_height >> 1);
+    uint8 *yuvDataY = yuvData;
+    uint8 *yuvDataU = yuvData + yuvYSize;
+    uint8 *yuvDataV = yuvData + yuvYSize + yuvUSize;
+
+//    LOGD(DEBUG, "设置data[0]");
+    // 设置yuv数据到 AVFrame
+    pFrame->data[0] = yuvDataY;
+//    LOGD(DEBUG, "设置data[1]");
+    pFrame->data[1] = yuvDataU;
+//    LOGD(DEBUG, "设置data[2]");
+    pFrame->data[2] = yuvDataV;
+
+    // 该yuv在视频的时间
+//    pFrame->pts = frame_count++ * 10000;//(utils::getCurrentTime() - arguments->start_time);
+//    long current_time = utils::getCurrentTime();
+//    pFrame->pts = ((current_time - arguments->start_time) * video_st->time_base.den)
+//                  / (video_st->time_base.num * arguments->video_fps);
+    pFrame->pts = frame_count ++;
+    int got_picture = 0;
+    av_init_packet(&pkt);
+    pkt.data = NULL;
+    pkt.size = 0;
+    // 进行编码
+//    LOGD(DEBUG, "avcodec_encode_video2");
+    int ret = avcodec_encode_video2(pCodecCtx, &pkt, pFrame, &got_picture);
+//    free(yuvData);
+//    LOGD(DEBUG, "avcodec_encode_video2 成功");
+    if(ret < 0){
+        LOGE(DEBUG, "Failed to encode!");
+        return;
+    }
+    if (ret == 0) {
+//        LOGI(DEBUG, "pts == %ld", (long)pkt.pts);
+        if (got_picture==1){
+//            pkt.pts = av_rescale_q_rnd(pFrame->pts,
+//                                       pCodecCtx->time_base,
+//                                       video_st->time_base,
+//                                       AV_ROUND_NEAR_INF);
+//            pkt.dts = av_rescale_q_rnd(pFrame->pkt_dts,
+//                                       pCodecCtx->time_base,
+//                                       video_st->time_base,
+//                                       AV_ROUND_NEAR_INF);
+            //        LOGI(DEBUG, "Succeed to encode frame: %5ld\tsize:%5d\n",frame_count,pkt.size);
+            pkt.stream_index = video_st->index;
+            ret = av_write_frame(pFormatCtx, &pkt);
+            av_packet_unref(&pkt);
+        }
+
+//    LOGD(DEBUG, "av_write_frame 处理完成");
+
+    }
 }
 
 int video_encoder::flush_encoder(unsigned int stream_index) {
-    LOGD(DEBUG, "flush_encoder");
+    LOGD(DEBUG, "flush_video_encoder");
     int ret;
     int got_frame;
     AVPacket enc_pkt;
@@ -312,24 +339,54 @@ int video_encoder::flush_encoder(unsigned int stream_index) {
     return ret;
 }
 
+void video_encoder::pushFrame(uint8 *srcData) {
+    long current_time = utils::getCurrentTime();
+    if ((current_time - last_encode_time) >= frame_duration) {
+        last_encode_time = current_time;
+        processing = true;
+        queue.push(frame_filter(srcData));
+        processing = false;
+    }
+
+}
+
 void video_encoder::stop() {
     while (processing) {
-        // ... 阻塞着等 processing 为false
+
     }
+    LOGI(DEBUG, "stop video encode...");
+    isEnd = true;
+}
+
+void *video_encoder::start_encode(void *obj) {
+    video_encoder *encoder = (video_encoder *)obj;
+    while (!encoder->isEnd || !encoder->queue.empty()) {
+        if (encoder->queue.empty()) {
+            continue;
+        }
+        uint8_t *picture_buf = *encoder->queue.wait_and_pop().get();
+        if (picture_buf) {
+            encoder->encode_frame(picture_buf);
+            delete(picture_buf);
+        }
+    }
+
     // 刷新缓存区数据
-    int ret = flush_encoder(0);
-    if (ret < 0) {
+    if (encoder->flush_encoder(0) < 0) {
         LOGE(DEBUG, "Flushing encoder failed");
     }
 
-    av_write_trailer(pFormatCtx);
+    av_write_trailer(encoder->pFormatCtx);
 
     // 清空无用内存
-    if (video_st){
-        avcodec_close(video_st->codec);
-        av_free(pFrame);
-        av_free(picture_buf);
+    if (encoder->video_st){
+        avcodec_close(encoder->video_st->codec);
+        av_free(encoder->pFrame);
+        av_free(encoder->picture_buf);
     }
-    avio_close(pFormatCtx->pb);
-    avformat_free_context(pFormatCtx);
+    avio_close(encoder->pFormatCtx->pb);
+    avformat_free_context(encoder->pFormatCtx);
+
+    encoder = NULL;
+    return NULL;
 }

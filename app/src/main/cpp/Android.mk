@@ -71,7 +71,8 @@ LOCAL_SRC_FILES := xyz_eraise_libyuv_utils_NdkBridge.cpp \
                    video_encoder.cpp \
                    audio_encoder.cpp \
                    utils.cpp \
-                   media_muxer.cpp
+                   media_muxer.cpp \
+                   threadsafe_queue.cpp
 LOCAL_C_INCLUDES += -L$(SYSROOT)/usr/include
 LOCAL_C_INCLUDES += $(INCLUDE_PATH)
 LOCAL_SHARED_LIBRARIES := fdk-aac \

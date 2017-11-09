@@ -36,10 +36,12 @@ int audio_encoder::init(Arguments* vargs) {
     pCodecCtx->codec_id = fmt->audio_codec;
     pCodecCtx->codec_type = AVMEDIA_TYPE_AUDIO;
     pCodecCtx->sample_fmt = AV_SAMPLE_FMT_S16;
-    pCodecCtx->sample_rate = 44100;
+    pCodecCtx->sample_rate = arguments->audio_sample_rate;
     pCodecCtx->channel_layout = AV_CH_LAYOUT_STEREO;
     pCodecCtx->channels = av_get_channel_layout_nb_channels(pCodecCtx->channel_layout);
     pCodecCtx->bit_rate = 64000;
+    pCodecCtx->time_base.num = 1000;
+    pCodecCtx->time_base.den = arguments->audio_sample_rate;
 
     av_dump_format(pFormatCtx, 0, output_url, 1);
 
@@ -78,7 +80,8 @@ int audio_encoder::init(Arguments* vargs) {
 void audio_encoder::encodeFrame(uint8* srcData) {
     pFrame->data[0] = srcData;
     // 该帧的时间
-    pFrame->pts = frame_count++;//(utils::getCurrentTime() - arguments->start_time);
+//    pFrame->pts = (utils::getCurrentTime() - arguments->start_time) / arguments->audio_sample_rate;
+    pFrame->pts = frame_count ++;
     int got_frame = 0;
     int ret = avcodec_encode_audio2(pCodecCtx, &pkt, pFrame, &got_frame);
     if (ret < 0) {
@@ -86,7 +89,11 @@ void audio_encoder::encodeFrame(uint8* srcData) {
         return;
     }
     if (got_frame == 1) {
-        LOGD(DEBUG, "成功编码 1 帧音频! \t size:%5d\n", pkt.size);
+//        LOGD(DEBUG, "成功编码 1 帧音频! \t size:%5d\n", pkt.size);
+//        pkt.pts = av_rescale_q_rnd(pFrame->pts,
+//                                   audio_st->codec->time_base,
+//                                   audio_st->time_base,
+//                                   AV_ROUND_NEAR_INF);
         pkt.stream_index = audio_st->index;
         ret = av_write_frame(pFormatCtx, &pkt);
         av_free_packet(&pkt);
@@ -94,11 +101,10 @@ void audio_encoder::encodeFrame(uint8* srcData) {
 }
 
 void audio_encoder::stop() {
-    LOGD(DEBUG, "flush_encoder");
+    LOGD(DEBUG, "flush_audio_encoder");
     int ret = flush_encoder(0);
     if (ret < 0) {
         LOGE(DEBUG, "flush encoder audio failed\n");
-        return;
     }
     LOGD(DEBUG, "av_write_trailer");
     av_write_trailer(pFormatCtx);
