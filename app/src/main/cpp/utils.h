@@ -6,8 +6,8 @@
 #define LIBYUV_UTILS_H
 
 
-#include <linux/time.h>
-#include <sys/time.h>
+#include "linux/time.h"
+#include "sys/time.h"
 
 class utils {
 public:

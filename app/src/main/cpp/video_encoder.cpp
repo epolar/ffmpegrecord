@@ -2,7 +2,7 @@
 // Created by eraise on 2017/10/30.
 //
 
-#include <video_encoder.h>
+#include "video_encoder.h"
 
 int video_encoder::init(Arguments* vargs) {
     arguments = vargs;
@@ -43,31 +43,30 @@ int video_encoder::init(Arguments* vargs) {
     pCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
     pCodecCtx->width = arguments->out_width;
     pCodecCtx->height = arguments->out_height;
-    pCodecCtx->bit_rate = arguments->video_bit_rate * 1000;
+    pCodecCtx->bit_rate = arguments->video_bit_rate;
     pCodecCtx->thread_count = 5;
 
-    pCodecCtx->time_base.num = 1000;
-    pCodecCtx->time_base.den = arguments->video_fps * 1000;
+    pCodecCtx->time_base.num = 1;
+    pCodecCtx->time_base.den = arguments->video_fps;
     pCodecCtx->gop_size = arguments->video_fps << 1;
 
-    pCodecCtx->qmin = 10;
-    pCodecCtx->qmax = 51;
+    pCodecCtx->qmin = 18;
+    pCodecCtx->qmax = 28;
 
-//    pCodecCtx->max_b_frames = 30;
+//    pCodecCtx->max_b_frames = 3;
 
     // Set Option
     AVDictionary *param = 0;
     //H.264
     if(pCodecCtx->codec_id == AV_CODEC_ID_H264) {
 //        av_dict_set(&param, "preset", "slow", 0);
-//        av_dict_set(&param, "preset", "superfast", 0);
-        av_opt_set(pCodecCtx->priv_data, "preset", "ultrafast", 0);
+        av_dict_set(&param, "preset", "superfast", 0);
+//        av_opt_set(pCodecCtx->priv_data, "preset", "ultrafast", 0);
         av_dict_set(&param, "tune", "zerolatency", 0);
-        av_dict_set(&param, "profile", "baseline", 0);
-        //av_dict_set(&param, "profile", "main", 0);
+//        av_dict_set(&param, "profile", "main", 0);
     }
     //H.265
-    if(pCodecCtx->codec_id == AV_CODEC_ID_H265){
+    else if(pCodecCtx->codec_id == AV_CODEC_ID_H265){
         av_dict_set(&param, "preset", "ultrafast", 0);
         av_dict_set(&param, "tune", "zero-latency", 0);
     }
@@ -388,5 +387,6 @@ void *video_encoder::start_encode(void *obj) {
     avformat_free_context(encoder->pFormatCtx);
 
     encoder = NULL;
+    LOGD(DEBUG, "End of video encode")
     return NULL;
 }

@@ -1,7 +1,7 @@
 //
 // Created by eraise on 2017/9/21.
 //
-#include <android/log.h>
+#include "android/log.h"
 
 #define LOG_TAG "来自JNI:"
 

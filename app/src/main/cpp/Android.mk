@@ -3,8 +3,7 @@ LOCAL_PATH:= $(call my-dir)
 
 # common_CFLAGS := -Wall -fexceptions
 
-CPU_PLATFORM := armeabi
-LIB_DIR := ../jniLibs/$(CPU_PLATFORM)
+LIB_DIR := ../jniLibs/$(TARGET_ARCH_ABI)
 
 INCLUDE_PATH := $(LOCAL_PATH)/include
 

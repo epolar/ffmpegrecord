@@ -1,7 +1,7 @@
 //
 // Created by eraise on 2017/11/2.
 //
-#include <audio_encoder.h>
+#include "audio_encoder.h"
 
 int audio_encoder::init(Arguments* vargs) {
     LOGD(DEBUG, "init audio encoder")
@@ -115,6 +115,8 @@ void audio_encoder::stop() {
     }
     avio_close(pFormatCtx->pb);
     avformat_free_context(pFormatCtx);
+
+    LOGD(DEBUG, "End of audio encode");
 }
 
 int audio_encoder::flush_encoder(unsigned int stream_index) {

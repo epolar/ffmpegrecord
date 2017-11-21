@@ -11,10 +11,18 @@ android {
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         defaultConfig {
-            ndk {
-                abiFilters 'armeabi'//, 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
-                ldLibs "log"
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-std=c++11"
+                }
             }
+            ndk{
+                abiFilters "armeabi","armeabi-v7a","arm64-v8a","x86","x86_64"
+            }
+//            ndk {
+//                abiFilters 'armeabi'//, 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+//                ldLibs "log"
+//            }
         }
     }
     buildTypes {
@@ -29,14 +37,20 @@ android {
             jniDebuggable = true
         }
     }
+//    externalNativeBuild {
+//        ndkBuild {
+//            path 'src/main/cpp/Android.mk'
+//        }
+//    }
     externalNativeBuild {
-        ndkBuild {
-            path 'src/main/cpp/Android.mk'
+        cmake {
+            path "CMakeLists.txt"
         }
     }
+
     packagingOptions {
         pickFirst 'lib/armeabi/libavformat.so'
-        pickFirst 'lib/armeabi/libswscale.so'
+        pickFirst 'lib/armeablibyuv_static.ai/libswscale.so'
         pickFirst 'lib/armeabi/libswresample.so'
         pickFirst 'lib/armeabi/libavcodec.so'
         pickFirst 'lib/armeabi/libavfilter.so'

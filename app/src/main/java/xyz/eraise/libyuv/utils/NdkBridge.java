@@ -11,7 +11,7 @@ public class NdkBridge {
         System.loadLibrary("avformat");
         System.loadLibrary("avutil");
         System.loadLibrary("fdk-aac");
-        System.loadLibrary("postproc");
+//        System.loadLibrary("postproc");
         System.loadLibrary("swresample");
         System.loadLibrary("swscale");
         System.loadLibrary("yuvutil");

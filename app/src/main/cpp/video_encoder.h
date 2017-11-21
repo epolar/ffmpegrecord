@@ -5,14 +5,14 @@
 #ifndef LIBYUV_VIDEO_ENCODER_H
 #define LIBYUV_VIDEO_ENCODER_H
 
-#include <base_include.h>
-#include <threadsafe_queue.cpp>
+#include "base_include.h"
+#include "threadsafe_queue.cpp"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <libavutil/opt.h>
+#include "libavutil/opt.h"
 
 #ifdef __cplusplus
 }

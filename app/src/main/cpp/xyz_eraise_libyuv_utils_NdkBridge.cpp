@@ -1,7 +1,7 @@
-#include <base_include.h>
-#include <video_encoder.h>
-#include <audio_encoder.h>
-#include <media_muxer.h>
+#include "base_include.h"
+#include "video_encoder.h"
+#include "audio_encoder.h"
+#include "media_muxer.h"
 
 #ifndef _Included_xyz_eraise_libyuv_utils_NdkBridge
 #define _Included_xyz_eraise_libyuv_utils_NdkBridge
