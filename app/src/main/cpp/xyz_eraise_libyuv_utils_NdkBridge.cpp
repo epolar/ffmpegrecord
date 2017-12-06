@@ -17,6 +17,7 @@ audio_encoder* audioEncoder;
 JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_prepare
         (JNIEnv *env,
          jclass jcls,
+         jint audioSampleRate,
          jint in_width,
          jint in_height,
          jint out_width,
@@ -28,6 +29,7 @@ JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_prepare
          jstring audio_name) {
     LOGI(DEBUG, "prepare 开始");
     arguments = new Arguments();
+    arguments->audio_sample_rate = audioSampleRate;
     arguments->in_width = in_width;
     arguments->in_height = in_height;
     arguments->out_width = out_width;
@@ -61,7 +63,7 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_processVideo
 
     jbyte* srcData = env->GetByteArrayElements(data, 0);
 
-    videoEncoder->pushFrame((uint8 *) srcData);
+    videoEncoder->push_frame((uint8 *) srcData);
 
     env->ReleaseByteArrayElements(data, srcData, 0);
 
@@ -73,10 +75,11 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_processVideo
 JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_processAudio
         (JNIEnv *env,
          jclass jcls,
+         jint len,
          jbyteArray data) {
     jbyte* srcData = env->GetByteArrayElements(data, 0);
 
-    audioEncoder->encodeFrame((uint8*) srcData);
+    audioEncoder->push_frame((uint8*) srcData, len);
 
     env->ReleaseByteArrayElements(data, srcData, 0);
 }
@@ -87,9 +90,16 @@ JNIEXPORT void JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_stop
     LOGD(DEBUG, "stop...");
     videoEncoder->stop();
     audioEncoder->stop();
+    pthread_join(audioEncoder->encode_thread, NULL);
     pthread_join(videoEncoder->encode_thread, NULL);
     media_muxer::mux(arguments);
     LOGI(DEBUG, "Success !!!!!!!!!!!!!!!!!!!!");
+}
+
+JNIEXPORT int JNICALL Java_xyz_eraise_libyuv_utils_NdkBridge_getAudioFrameSize
+        (JNIEnv *env,
+         jclass jcls) {
+    return audioEncoder->get_frame_size();
 }
 
 #ifdef __cplusplus

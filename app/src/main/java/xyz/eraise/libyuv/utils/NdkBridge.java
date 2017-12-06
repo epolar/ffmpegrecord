@@ -19,14 +19,19 @@ public class NdkBridge {
 
     /**
      *
+     * @param audioSampleRate
      * @param width
      * @param height
      * @param dstWidth
      * @param dstHeight
      * @param rotateModel 旋转角度,0 90 180 270
      * @param enableMirror
+     * @param videoBaseUrl
+     * @param videoName
+     * @param audioName
      */
-    public static native void prepare(int width,
+    public static native void prepare(int audioSampleRate,
+                                      int width,
                                       int height,
                                       int dstWidth,
                                       int dstHeight,
@@ -42,7 +47,9 @@ public class NdkBridge {
      */
     public static native void processVideo(byte[] data);
 
-    public static native void processAudio(byte[] data);
+    public static native void processAudio(int len, byte[] data);
+
+    public static native int getAudioFrameSize();
 
     public static native void stop();
 }

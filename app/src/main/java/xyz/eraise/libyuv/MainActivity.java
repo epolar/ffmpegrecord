@@ -16,8 +16,8 @@ import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.tbruyelle.rxpermissions2.RxPermissions;
@@ -30,8 +30,13 @@ import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 import xyz.eraise.libyuv.utils.NdkBridge;
@@ -44,6 +49,7 @@ public class MainActivity extends AppCompatActivity
 
     private SurfaceView mPreview;
     private Button btnTake;
+    private TextView tvDuration;
 
     private static final int OUT_WIDTH = 540;
     private static final int OUT_HEIGHT = 480;
@@ -57,6 +63,10 @@ public class MainActivity extends AppCompatActivity
 
     private volatile byte[] lastFrame;
 
+    private Timer mTimer;
+    private TimerTask mDurationTask;
+    private long mDuration;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -64,55 +74,55 @@ public class MainActivity extends AppCompatActivity
 
         mPreview = (SurfaceView) findViewById(R.id.surface);
         btnTake = (Button) findViewById(R.id.btn_take);
-        btnTake.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                takePhoto();
-            }
-        });
-        findViewById(R.id.guideline_video).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                autoFocus();
-            }
-        });
+        tvDuration = (TextView) findViewById(R.id.tv_duration);
+        btnTake.setOnClickListener(v -> takePhoto());
+        findViewById(R.id.guideline_video).setOnClickListener(v -> autoFocus());
 
         SurfaceHolder holder = mPreview.getHolder();
         holder.addCallback(this);
 
-        int sampleRateHz = getRecordRate();
         int channelConfig = AudioFormat.CHANNEL_IN_STEREO;
         int audioFormat = AudioFormat.ENCODING_PCM_16BIT;
+        int sampleRateHz = getRecordRate(channelConfig, audioFormat);
         mBufferSizeInBytes = AudioRecord.getMinBufferSize(sampleRateHz,
                 channelConfig,
                 audioFormat);
+        int bytesPerFrame = 4096;
+        mBufferSizeInBytes += (bytesPerFrame - mBufferSizeInBytes % bytesPerFrame);
+		/* Get number of samples. Calculate the buffer size
+		 * (round up to the factor of given frame size)
+		 * 使能被整除，方便下面的周期性通知
+		 * */
+//        int frameSize = mBufferSizeInBytes / bytesPerFrame;
+//        int frame_count = 160;
+//        if (frameSize % frame_count != 0) {
+//            frameSize += (frame_count - frameSize % frame_count);
+//            mBufferSizeInBytes = frameSize * bytesPerFrame;
+//        }
         mAudioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
                 sampleRateHz,
                 channelConfig,
                 audioFormat,
                 mBufferSizeInBytes);
-        mAudioRecord.setRecordPositionUpdateListener(new AudioRecord.OnRecordPositionUpdateListener() {
-            @Override
-            public void onMarkerReached(AudioRecord recorder) {
-
-            }
-
-            @Override
-            public void onPeriodicNotification(AudioRecord recorder) {
-
-            }
-        });
+//        mAudioRecord.setPositionNotificationPeriod(frame_count);
     }
 
-    public int getRecordRate() {
-        for (int rate : new int[] {44100, 22050, 11025, 16000, 8000}) {  // add the rates you wish to check against
-            int bufferSize = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_CONFIGURATION_DEFAULT, AudioFormat.ENCODING_PCM_16BIT);
-            if (bufferSize > 0) {
+    public int getRecordRate(int channelConfig, int audioFormat) {
+//        int[] rateList = new int[] {8000, 11025, 16000, 22050,
+//                32000, 37800, 44056, 44100, 47250, 4800, 50000, 50400, 88200,
+//                96000, 176400, 192000, 352800, 2822400, 5644800};
+        int[] rateList = new int[] {44100, 22050, 32000, 11025, 8000, 37800, 44056,
+                47250, 4800, 50000, 50400, 88200, 96000,
+                176400, 192000, 352800, 2822400, 5644800};
+        for (int rate : rateList) {  // add the rates you wish to check against
+            int bufferSize = AudioRecord.getMinBufferSize(rate, channelConfig, audioFormat);
+            if (bufferSize != AudioRecord.ERROR
+                    && bufferSize != AudioRecord.ERROR_BAD_VALUE && bufferSize > 0) {
                 // buffer size is valid, Sample rate supported
                 return rate;
             }
         }
-        return 8000;
+        return 44100;
     }
 
     private void openCamera() {
@@ -207,19 +217,21 @@ public class MainActivity extends AppCompatActivity
     public void takePhoto() {
         if (isRecord) {
             isRecord = false;
+            if (mDurationTask != null) {
+                mDurationTask.cancel();
+                mDurationTask = null;
+                mTimer.purge();
+            }
 //            NdkBridge.stop();
 //            Toast.makeText(this, "结束", Toast.LENGTH_SHORT).show();
 //            btnTake.setText("录制");
         } else {
             new RxPermissions(MainActivity.this)
                     .request(Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    .subscribe(new Consumer<Boolean>() {
-                        @Override
-                        public void accept(Boolean aBoolean) throws Exception {
-                            if (aBoolean) {
-                                startRecord();
-                                btnTake.setText("停止");
-                            }
+                    .subscribe(grant -> {
+                        if (grant) {
+                            startRecord();
+                            btnTake.setText("停止");
                         }
                     });
         }
@@ -266,7 +278,8 @@ public class MainActivity extends AppCompatActivity
         /* 初始化录制工具 */
 //      pamera.Size previewSize = parameters.getPreviewSize();
         Camera.Size previewSize = mCamera.getParameters().getPreviewSize();
-        NdkBridge.prepare(previewSize.width,
+        NdkBridge.prepare(mAudioRecord.getSampleRate(),
+                previewSize.width,
                 previewSize.height,
                 OUT_WIDTH,
                 OUT_HEIGHT,
@@ -278,37 +291,51 @@ public class MainActivity extends AppCompatActivity
 
         isRecord = true;
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                recordAudio();
+        new Thread(this::recordAudio).start();
+        Observable.create(subscription-> {
+            while (isRecord) {
+                if (lastFrame != null)
+                    processFrame(lastFrame.clone(), null);
             }
-        }).start();
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (isRecord) {
-                    if (lastFrame != null)
-                        processFrame(lastFrame.clone(), null);
-                }
-                NdkBridge.stop();
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(MainActivity.this, "结束", Toast.LENGTH_SHORT).show();
-                        btnTake.setText("录制");
-                    }
+            NdkBridge.stop();
+            subscription.onNext(true);
+            subscription.onComplete();
+        }).subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(obj -> {
+                    Toast.makeText(MainActivity.this, "结束", Toast.LENGTH_SHORT).show();
+                    btnTake.setText("录制");
                 });
+
+        if (mTimer == null) {
+            mTimer = new Timer();
+        }
+        if (mDurationTask != null) {
+            mDurationTask.cancel();
+        }
+        mDuration = 0;
+        mDurationTask = new TimerTask() {
+            @Override
+            public void run() {
+                mDuration += 10;
+                runOnUiThread(() ->
+                        tvDuration.setText(MessageFormat.format("{0, number, 0.00}", mDuration / 1000f)));
             }
-        }).start();
+        };
+        mTimer.schedule(mDurationTask, 10, 10);
+
     }
 
     private void recordAudio() {
         mAudioRecord.startRecording();
-        byte[] buf = new byte[mBufferSizeInBytes];
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+        int bufSize = NdkBridge.getAudioFrameSize();
+        byte[] buf = new byte[bufSize];
         while (isRecord) {
-            mAudioRecord.read(buf, 0, mBufferSizeInBytes);
-            NdkBridge.processAudio(buf);
+            int len = mAudioRecord.read(buf, 0, bufSize);
+            if (len > 0) {
+                NdkBridge.processAudio(len, buf);
+            }
         }
         mAudioRecord.stop();
     }
@@ -316,18 +343,6 @@ public class MainActivity extends AppCompatActivity
     private void processFrame(byte[] data, Camera camera) {
         // 报像头获取的图片帧传送到 ndk 层交由 ffmpeg 进行编码保存
         NdkBridge.processVideo(data);
-//        Observable.just(data)
-//                .subscribeOn(Schedulers.io())
-//                .observeOn(Schedulers.io())
-//                .subscribe(new Consumer<byte[]>() {
-//                    @Override
-//                    public void accept(byte[] bytes) throws Exception {
-//                        long timestamp = System.currentTimeMillis();
-//                        // 报像头获取的图片帧传送到 ndk 层交由 ffmpeg 进行编码保存
-//                        NdkBridge.processVideo(bytes);
-//                        Log.i(TAG, MessageFormat.format("yuv处理费时：{0, number} ms", System.currentTimeMillis() - timestamp));
-//                    }
-//                });
     }
 
     // save image to sdcard path: Pictures/MyTestImage/

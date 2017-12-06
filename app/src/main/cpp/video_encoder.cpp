@@ -14,7 +14,8 @@ int video_encoder::init(Arguments* vargs) {
     fmt = av_guess_format(NULL, arguments->video_name, NULL);
     LOGI(DEBUG, "av_guess_format %s", fmt->name);
     pFormatCtx->oformat = fmt;
-    av_log_set_callback(logcallback);
+    // 注册日志
+//    av_log_set_callback(logcallback);
 
     char base_url[strlen(arguments->base_url)];
     strcpy(base_url, arguments->base_url);
@@ -338,7 +339,7 @@ int video_encoder::flush_encoder(unsigned int stream_index) {
     return ret;
 }
 
-void video_encoder::pushFrame(uint8 *srcData) {
+void video_encoder::push_frame(uint8 *srcData) {
     long current_time = utils::getCurrentTime();
     if ((current_time - last_encode_time) >= frame_duration) {
         last_encode_time = current_time;
@@ -366,7 +367,7 @@ void *video_encoder::start_encode(void *obj) {
         uint8_t *picture_buf = *encoder->queue.wait_and_pop().get();
         if (picture_buf) {
             encoder->encode_frame(picture_buf);
-            delete(picture_buf);
+            free(picture_buf);
         }
     }
 

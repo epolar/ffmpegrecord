@@ -14,14 +14,10 @@ extern "C" {
 
 #include "libavutil/opt.h"
 
-#ifdef __cplusplus
-}
-#endif
-
 class video_encoder {
 public:
     int init(Arguments* vargs);
-    void pushFrame(uint8 *srcData);
+    void push_frame(uint8 *srcData);
     void stop();
 private:
     int flush_encoder(unsigned int stream_index);
@@ -55,3 +51,6 @@ private:
 
 
 #endif //LIBYUV_VIDEO_ENCODER_H
+#ifdef __cplusplus
+}
+#endif

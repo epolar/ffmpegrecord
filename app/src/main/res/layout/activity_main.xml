@@ -46,4 +46,16 @@
         app:layout_constraintRight_toRightOf="parent"
         />
 
+    <TextView
+
+        android:id="@+id/tv_duration"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        tools:text="0.00"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/btn_take"
+        app:layout_constraintTop_toBottomOf="@id/guideline_video"
+        />
+
 </android.support.constraint.ConstraintLayout>
