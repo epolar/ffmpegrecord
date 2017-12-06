@@ -13,11 +13,13 @@
 extern "C" {
 #endif
 
-class audio_pcm_data {
-public:
-    long len;
-    long pts;
-    uint8 *data;
+struct audio_pcm_data {
+    long len = NULL;
+    long pts = NULL;
+    uint8 *data = NULL;
+
+    audio_pcm_data(long len, long pts, uint8 *srcData);
+    void destory();
 };
 
 class audio_encoder {

@@ -3,6 +3,21 @@
 //
 #include "audio_encoder.h"
 
+void audio_pcm_data::destory() {
+    if (data) {
+        free(data);
+        data = NULL;
+    }
+}
+
+audio_pcm_data::audio_pcm_data(long len, long pts, uint8 *srcData) {
+    this->len = len;
+    this->pts = pts;
+
+    data = (uint8 *) malloc((size_t)len);
+    memcpy(data, srcData, (size_t)len);
+}
+
 int audio_encoder::init(Arguments* vargs) {
     LOGD(DEBUG, "init audio encoder")
     arguments = vargs;
@@ -36,28 +51,6 @@ int audio_encoder::init(Arguments* vargs) {
     if (audio_st == NULL) {
         return -1;
     }
-//
-//    pCodecCtx = audio_st->codec;
-//    pCodecCtx->codec_id = fmt->audio_codec;
-//    pCodecCtx->codec_type = AVMEDIA_TYPE_AUDIO;
-//    pCodecCtx->sample_fmt = AV_SAMPLE_FMT_S16;
-////    pCodecCtx->bit_rate = 128000;
-//    pCodecCtx->sample_rate = arguments->audio_sample_rate;
-//    pCodecCtx->channel_layout = AV_CH_LAYOUT_STEREO;
-//    pCodecCtx->channels = av_get_channel_layout_nb_channels(pCodecCtx->channel_layout);
-////    pCodecCtx->time_base.num = 1;
-////    pCodecCtx->time_base.den = 25;
-////    pCodecCtx->thread_count = 4;
-//
-////    pCodec = avcodec_find_encoder(pCodecCtx->codec_id);
-//    if (!pCodec) {
-//        LOGE(DEBUG, "未发现合适的音频编码器!!");
-//        return -1;
-//    }
-//    if (avcodec_open2(pCodecCtx, pCodec, NULL) < 0) {
-//        LOGE(DEBUG, "音频编码器打开失败!!");
-//        return -1;
-//    }
 
     pCodec = avcodec_find_encoder_by_name("libfdk_aac");
     if (!pCodec) {
@@ -97,12 +90,8 @@ int audio_encoder::init(Arguments* vargs) {
                                       pCodecCtx->frame_size,
                                       pCodecCtx->sample_fmt,
                                       1);
-//    frame_buf = (uint8_t *)av_malloc((size_t)size);
-//    avcodec_fill_audio_frame(pFrame, pCodecCtx->channels, pCodecCtx->sample_fmt, frame_buf, size, 1);
 
     avformat_write_header(pFormatCtx, NULL);
-
-//    av_new_packet(&pkt, size);
 
     // 编码线程
     pthread_create(&encode_thread, NULL, audio_encoder::start_encode, this);
@@ -119,27 +108,19 @@ int audio_encoder::get_frame_size() {
 
 void audio_encoder::push_frame(uint8* srcData, int len) {
     processing = true;
-//    size_t msize = sizeof(srcData) * len;
-    uint8* frame = (uint8 *) malloc((size_t)len);
-    memcpy(frame, srcData, (size_t)len);
-    if (start_time == 0) {
-        start_time = utils::getCurrentTime();
-    }
-    audio_pcm_data data = {len, utils::getCurrentTime() - start_time, frame};
-    queue.push(data);
+//    audio_pcm_data data = audio_pcm_data{len, utils::getCurrentTime() - start_time, srcData};
+    queue.push(audio_pcm_data{len, utils::getCurrentTime() - start_time, srcData});
     processing = false;
 }
 
 void audio_encoder::encode_frame(audio_pcm_data *pcm_data) {
-    int ret = 0;
     uint8 *srcData = pcm_data->data;
-    ret = avcodec_fill_audio_frame(pFrame,
+    avcodec_fill_audio_frame(pFrame,
                                    pCodecCtx->channels,
                                    pCodecCtx->sample_fmt,
                                    srcData, (int)pcm_data->len, 0);
 //    pFrame->pts = frame_count ++;
-    ret = avcodec_send_frame(pCodecCtx, pFrame);
-    if (ret != 0) {
+    if (avcodec_send_frame(pCodecCtx, pFrame) != 0) {
         LOGD(DEBUG, "send frame failed")
     }
 
@@ -148,52 +129,10 @@ void audio_encoder::encode_frame(audio_pcm_data *pcm_data) {
         av_packet_unref(&pkt);
     }
 
-
-//    pFrame->data[0] = srcData;
-//    av_new_packet(&pkt, size);
-//    pkt.data = NULL;
-//    pkt.size = 0;
-//    // 该帧的时间
-////    pFrame->pts = (utils::getCurrentTime() - arguments->start_time) / arguments->audio_sample_rate;
-////    pFrame->pts = frame_count ++;
-//    int got_frame = 0;
-//    int ret = avcodec_encode_audio2(pCodecCtx, &pkt, pFrame, &got_frame);
-//    if (ret < 0) {
-//        LOGE(DEBUG, "音频编码失败");
-//        return;
-//    }
-//    if (got_frame == 1) {
-////        LOGD(DEBUG, "成功编码 1 帧音频! \t size:%5d\n", pkt.size);
-////        pkt.pts = av_rescale_q_rnd(pFrame->pts,
-////                                   audio_st->codec->time_base,
-////                                   audio_st->time_base,
-////                                   AV_ROUND_NEAR_INF);
-//        pkt.stream_index = audio_st->index;
-//        ret = av_write_frame(pFormatCtx, &pkt);
-//    } else {
-//        LOGD(DEBUG, "skip a frame audio");
-//    }
-//    av_free_packet(&pkt);
 }
 
 void audio_encoder::stop() {
     isEnd = true;
-//    LOGD(DEBUG, "flush_audio_encoder");
-//    int ret = flush_encoder(0);
-//    if (ret < 0) {
-//        LOGE(DEBUG, "flush encoder audio failed\n");
-//    }
-//    LOGD(DEBUG, "av_write_trailer");
-//    av_write_trailer(pFormatCtx);
-//    if (audio_st) {
-//        avcodec_close(audio_st->codec);
-//        av_free(pFrame);
-//        av_free(frame_buf);
-//    }
-//    avio_close(pFormatCtx->pb);
-//    avformat_free_context(pFormatCtx);
-//
-//    LOGD(DEBUG, "End of audio encode");
 }
 
 int audio_encoder::flush_encoder(unsigned int stream_index) {
@@ -234,8 +173,9 @@ void *audio_encoder::start_encode(void *obj) {
         audio_pcm_data frame_buf = *encoder->queue.wait_and_pop().get();
         if (&frame_buf) {
             encoder->encode_frame(&frame_buf);
-            free(frame_buf.data);
-            free(&frame_buf);
+            frame_buf.destory();
+//            free(frame_buf.data);
+//            free(&frame_buf);
         }
     }
 
