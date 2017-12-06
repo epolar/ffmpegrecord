@@ -143,11 +143,10 @@ void audio_encoder::encode_frame(audio_pcm_data *pcm_data) {
         LOGD(DEBUG, "send frame failed")
     }
 
-    while (avcodec_receive_packet(pCodecCtx, &pkt) > 0) {
-        LOGD(DEBUG, "------- receive frame")
+    while (avcodec_receive_packet(pCodecCtx, &pkt) >= 0) {
         av_write_frame(pFormatCtx, &pkt);
+        av_packet_unref(&pkt);
     }
-    av_packet_unref(&pkt);
 
 
 //    pFrame->data[0] = srcData;
